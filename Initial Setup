@@ -1,0 +1,13 @@
+### Make sure you have a virtual environment set up
+
+pip3 install virtualenv
+virtualenv my_env
+
+### Activate the virtual environment
+
+source my_env/bin/activate
+
+### Install the necessary libraries
+
+pip3 install numpy pandas matplotlib
+pip3 install plotly

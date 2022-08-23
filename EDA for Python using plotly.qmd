@@ -1,0 +1,133 @@
+---
+title: "Workshop Quarto"
+format: html
+editor: visual
+---
+
+## Import the libraries
+
+Credit to Radhouane Touj for the analysis and code.
+
+```{python}
+### Import the necessary libraries
+import numpy as np
+import pandas as pd
+```
+
+## Set up plotly to how we want it
+
+```{python}
+### Plotly
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+import plotly.express as px
+# Template
+import plotly.io as pio
+pio.templates["draft"] = go.layout.Template(
+    layout_annotations=[
+        dict(
+            textangle=-30,
+            opacity=0.1,
+            font=dict(color="black", size=100),
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+    ]
+)
+pio.templates.default = "draft"
+
+```
+
+## Let's get the files we have in the data directory:
+
+```{python}
+import os
+for dirname, _, filenames in os.walk("/Users/alfonso/Desktop/Skillspire_workshop1/data"):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+        
+```
+
+## Now let's read the data to have an initial look at it
+
+```{python}
+country_mapping = pd.read_csv("/Users/alfonso/Desktop/Skillspire_workshop1/data/continents2.csv")
+data = pd.read_csv("/Users/alfonso/Desktop/Skillspire_workshop1/data/ds_salaries.csv", index_col=[0])
+data
+```
+
+## First, let's make sure we double check if there are any missing values
+
+```{python}
+data.isna().sum()
+```
+
+## Let's see if we are going to have issues with the data and sizes:
+
+```{python}
+print(f"Data Memory Usage: {round(data.memory_usage().sum()/(1024), 2)}KB")
+```
+
+```{python}
+# We'll update some columns' values based on the data description
+data["employment_type"] = data["employment_type"].replace({"FT": "Full Time", "PT": "Part Time", "CT": "Contract", "FL": "Freelance"})
+data["company_size"] = data["company_size"].replace({"S": "Small", "M": "Medium", "L":"Large"})
+data["experience_level"] = data["experience_level"].replace({"EN": "Entry Level/Junior", "MI": "Mid Level/Intermediate", "SE": "Senior Level/Expert", "EX": "Executive Level/Director"})
+
+data["Same_Location"] = (data["employee_residence"] == data["company_location"]).to_numpy()
+
+View(data)
+```
+
+## Now let's do some exploratory data analysis!
+
+First, let's observe the distribution of jobs based on variables such as employment type, experience level, and company size.
+
+```{python}
+annotations = []
+x_positions = [0.07, 0.50, 0.92]
+
+fig = make_subplots(rows=1, cols=3, specs=[[{'type':'domain'}, {'type':'domain'}, {'type':'domain'}]],)
+                    #subplot_titles=["<b>Employment Type</b>","<b>Experience Level</b>", "<b>Company Size</b>"])
+
+for i, col in enumerate(["employment_type", "experience_level", "company_size"]):
+    fig.add_trace(go.Pie(labels=data[col].value_counts().index,
+                         values=data[col].value_counts().values,
+                         marker=dict(line=dict(width=2.5)), textfont_size=15,
+                         hole=.40, hovertemplate="%{label}: %{value}<extra></extra>"), 1, i+1)
+    annotations.append(dict(text=f'<b>{col}</b>', x=x_positions[i], y=-0.1, font_size=20, showarrow=False))
+
+fig.update_layout(title=f"<i>Information About Jobs Existing in the Dataset</i>", annotations=annotations)
+fig.show()
+```
+
+Now, let's explore the number of jobs by country
+
+```{python}
+fig = go.Figure()
+
+fig.add_trace(go.Bar(x=data["company_location"].value_counts().index,
+                     y=data["company_location"].value_counts().values))
+
+fig.update_layout(title="Number Of Jobs By Country", yaxis_title="Count", xaxis_title="Company Location")
+fig.show()
+```
+
+Let's explore location and residence:
+
+```{python}
+fig = go.Figure()
+
+
+fig.add_trace(go.Pie(labels=data["Same_Location"].value_counts().index,
+                     values=data["Same_Location"].value_counts().values,
+                     marker=dict(line=dict(width=2.5)), textfont_size=20,
+                     hole=.40, hovertemplate="%{label}: %{value}<extra></extra>"))
+
+fig.update_layout(title=f"<b>Are Company Location and Employee Residence The Same?</b>")
+
+fig.show()
+```
