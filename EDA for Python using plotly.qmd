@@ -131,3 +131,190 @@ fig.update_layout(title=f"<b>Are Company Location and Employee Residence The Sam
 
 fig.show()
 ```
+
+What about the jobs that are more frequent in our data set? First we do some data cleaning and grouping, and then we plot them.
+
+```{python}
+n = 10
+top_n_jobs = data["job_title"].value_counts()[:n]
+top_n_jobs = top_n_jobs.to_frame().reset_index()
+top_n_jobs.columns=["job_title", "total_count"]
+top_n_jobs_remote = data.loc[data.job_title.isin(top_n_jobs.job_title)].groupby(["job_title", "remote_ratio"]).count()["salary"].reset_index()
+top_n_jobs_remote.columns = ["job_title", "remote_ratio", "count"]
+job_remote_stats = pd.merge(top_n_jobs_remote, top_n_jobs, on="job_title").sort_values(by="total_count", ascending=False)
+
+fig = go.Figure()
+# Remote Ratio: Pink 100% | Red 50% | Black 0%
+colors = ["black", "red", "lightpink"]
+for job_title in job_remote_stats.job_title.unique():
+    for i, remote_ratio in enumerate([0,50,100]):
+        fig.add_trace(go.Bar(x=job_remote_stats.loc[(job_remote_stats.job_title==job_title) & (job_remote_stats.remote_ratio==remote_ratio), "job_title"],
+                             y=job_remote_stats.loc[(job_remote_stats.job_title==job_title) & (job_remote_stats.remote_ratio==remote_ratio), "count"],
+                             marker=dict(color=colors[i]), 
+                             text=f"{remote_ratio}% Remote",
+                             hovertemplate="<b>%{y}<extra></extra>",
+                             showlegend=False
+                            ))
+
+fig.update_layout(title="Top 10 Most Present Jobs in Dataset",barmode="stack", yaxis_title="Job Counts", xaxis=dict(title="Job Title", automargin=True))
+fig.show()
+```
+
+That's interesting. It appears that the majority of jobs are remote. Has that always been the case?
+
+```{python}
+df_remote_yearly = data.groupby(["work_year", "remote_ratio"]).agg(average_salary_in_usd=("salary_in_usd", "mean"),
+                                                                   number_of_jobs=("salary_in_usd", "count"))
+df_remote_yearly = df_remote_yearly.reset_index()
+
+colors = ["orange", "purple", "brown"]
+
+fig = make_subplots(rows=2, cols=1, subplot_titles=["Number Of Jobs", "Average Salary in USD"], shared_xaxes=True,  horizontal_spacing=0.2)
+
+for i, remote_ratio in enumerate(df_remote_yearly.remote_ratio.unique()):
+    fig.add_trace(go.Scatter(x=df_remote_yearly.loc[df_remote_yearly.remote_ratio==remote_ratio, "work_year"],
+                             y=df_remote_yearly.loc[df_remote_yearly.remote_ratio==remote_ratio, "number_of_jobs"],
+                             marker=dict(size=20), line=dict(color=colors[i]),
+                             name=f"{remote_ratio}% Remote"),1,1)
+    
+    fig.add_trace(go.Scatter(x=df_remote_yearly.loc[df_remote_yearly.remote_ratio==remote_ratio, "work_year"],
+                             y=df_remote_yearly.loc[df_remote_yearly.remote_ratio==remote_ratio, "average_salary_in_usd"],
+                             marker=dict(size=20),line=dict(color=colors[i]),
+                             showlegend=False,
+                             name=f"{remote_ratio}% Remote"),2,1)
+
+
+fig.update_layout(title=f"Evolution of Jobs Remote Ratio Over Years", xaxis2=dict(title="Year", tickmode="linear"))
+fig.show()
+```
+
+## Analysis of Salaries
+
+```{python}
+currency = "USD"
+for col in ["work_year"]:
+    fig = go.Figure()
+
+
+    for value in data[col].unique():
+        fig.add_trace(go.Box(y=data.loc[(data[col]==value), "salary_in_usd"], name=str(value), boxpoints="outliers"))
+
+    fig.update_layout(title=f"Salaries Distribution Over <b>{col}</b>", yaxis_title="$")
+
+    fig.show()
+```
+
+```{python}
+currency = "USD"
+for col in ["experience_level"]:
+    fig = go.Figure()
+
+
+    for value in data[col].unique():
+        fig.add_trace(go.Box(y=data.loc[(data[col]==value), "salary_in_usd"], name=str(value), boxpoints="outliers"))
+
+    fig.update_layout(title=f"Salaries Distribution Over <b>{col}</b>", yaxis_title="$")
+
+    fig.show()
+```
+
+```{python}
+df_funnel = data.groupby(["experience_level", "Same_Location"]).mean()["salary_in_usd"].reset_index()
+df_funnel['A'] = pd.Categorical(df_funnel.experience_level, categories=['Executive Level/Director', 'Senior Level/Expert', 'Mid Level/Intermediate', 'Entry Level/Junior'], ordered=True)
+df_funnel = df_funnel.sort_values('A').drop(columns="A")
+fig = px.funnel(df_funnel, x='salary_in_usd', y='experience_level', color='Same_Location')
+fig.update_layout(title="Average Salary By Experience Level", yaxis=dict(automargin=True, title=" Experience Level"))
+
+fig.show()
+```
+
+## Geographic locations
+
+Let's observe what happens with geographic locations
+
+```{python}
+data_scientist_jobs = [x for x in data.job_title.unique() if "Data Scientist" in x]
+data_scientist_jobs
+
+df_map = data.loc[data.job_title.isin(data_scientist_jobs)].groupby(["work_year", "company_location"]).agg(["mean", "count"])["salary_in_usd"].reset_index()
+df_map.columns = ["work_year", "Country", "Average Salary", "Job Count"]
+df_map["Average Salary"] = df_map["Average Salary"].round(2)
+country_mapping_dict = country_mapping.set_index("alpha-2")["alpha-3"].to_dict()
+continent_mapping_dict = country_mapping.set_index("alpha-2")["region"].to_dict()
+df_map["Country_ISO3"] = df_map["Country"].apply(lambda x:country_mapping_dict[x])
+df_map["Continent"] = df_map["Country"].apply(lambda x:continent_mapping_dict[x])
+df_map = df_map.drop(columns='Country')
+
+fig = px.scatter_geo(df_map,
+                     locations="Country_ISO3",
+                     animation_frame="work_year",
+                     color="Continent",
+                     hover_name="Job Count",
+                     size="Average Salary",
+                     projection="natural earth")
+
+fig.update_geos(
+    resolution=50,
+    showcoastlines=True, coastlinecolor="RebeccaPurple",
+    showland=True, landcolor="LightGreen",
+    showocean=True, oceancolor="LightBlue",
+    showlakes=True, lakecolor="Blue",
+    # showrivers=True, rivercolor="Blue"
+)
+fig.update_layout(title="Data Scientist Jobs - Average Salary in USD Over Years- Geographic Distribution")
+fig.show()
+```
+
+## US Analysis
+
+Let's filter the data to get a data set of only the US
+
+```{python}
+data_us = data.loc[data.company_location=="US"].reset_index(drop=True)
+data_us["remote_ratio"] = data_us["remote_ratio"].replace({100:"Full Remote", 50:"Partially Remote", 0:"Non Remote"})
+data_us
+```
+
+```{python}
+job_titles_stats = data_us.groupby(["work_year", "remote_ratio", "job_title"], as_index=False).agg(average_salary=("salary_in_usd","mean"),
+                                                                                                   jobs_count=("salary", "count"),
+                                                                                                   most_company_size=("company_size",pd.Series.mode))
+job_titles_stats["average_salary"] = job_titles_stats["average_salary"].round(2)
+
+fig = px.treemap(job_titles_stats,
+                 path=[px.Constant("US Data Jobs"), "work_year", "remote_ratio", "job_title"],
+                 values='jobs_count',
+                 color='average_salary', 
+                 #hover_data=['most_company_size'],
+                 color_continuous_scale='RdBu'
+                 )
+fig.update_layout(title="<b>Tree Map Of Data Jobs - United States</b>", margin = dict(t=50, l=25, r=25, b=25))
+fig.show()
+```
+
+Salary by experience level:
+
+```{python}
+experience_level_stats = data_us.groupby(["work_year", "experience_level"], as_index=False).agg(average_salary=("salary_in_usd","mean"),
+                                                                                               jobs_count=("salary", "count"),
+                                                                                               most_company_size=("company_size",pd.Series.mode),
+                                                                                               most_remote_type=("remote_ratio",pd.Series.mode))
+experience_level_stats["average_salary"] = experience_level_stats["average_salary"].round(2)
+
+us_data_years = experience_level_stats.work_year.unique()
+fig = make_subplots(rows=1, cols=3, specs=[[{'type': 'polar'}]*3], column_titles=[str(year) for year in us_data_years])
+for i, year in enumerate(us_data_years):
+    year_stats_df = experience_level_stats.loc[experience_level_stats.work_year==year]
+    fig.add_trace(go.Scatterpolar(r = year_stats_df["average_salary"],
+                                  theta = year_stats_df["experience_level"],
+                                  showlegend=False,
+                                  ), 1, i+1)
+
+fig.update_traces(fill='toself')
+fig.update_layout(title="<b>Average Salary by Experience Level - United States</b>",
+    polar = dict(radialaxis_tickangle = -30, angularaxis = dict(rotation=30)),
+    polar2 = dict(radialaxis_tickangle = -30, angularaxis=dict(rotation=30)),
+    polar3 = dict(radialaxis_tickangle = -30, angularaxis=dict(rotation=30)),
+)
+fig.show()
+```
