@@ -1,0 +1,35 @@
+---
+title: "Regression Analysis with R extra"
+author: "Alfonso Rojas-Alvarez"
+date: '2022-08-23'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+```
+
+```{r cars}
+data_r <- read.csv("data/ds_salaries.csv")
+```
+
+## Let's do some basic regression!
+
+A basic OLS regression will explore the relationship between salary and several variables:
+
+```{r}
+model1 <- lm(salary_in_usd ~ experience_level + company_size + factor(work_year), data = data_r)
+summary(model1)
+```
+
+We can also do a logistic regression, to explore associations with a binary variable in the left hand side:
+
+```{r}
+data_r <- data_r %>% 
+  mutate(remote = ifelse(remote_ratio == 100, 1, 0))
+model2 <- lm(remote ~ experience_level + company_size + factor(work_year), data = data_r)
+summary(model1)
+```
+
+Note that these need to be transformed into odds ratios for full intepretability.
