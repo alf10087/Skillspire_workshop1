@@ -9,7 +9,7 @@ editor: visual
 Credit to Radhouane Touj for the analysis and code.
 
 ```{python}
-### Import the necessary libraries hello world
+### Import the necessary libraries
 import numpy as np
 import pandas as pd
 ```
