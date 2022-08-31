@@ -6,7 +6,7 @@ editor: visual
 
 ## Import the libraries
 
-Credit to Radhouane Touj for the analysis and code. Hola Rocio.
+Credit to Radhouane Touj for the analysis and code.
 
 ```{python}
 ### Import the necessary libraries
